@@ -1770,6 +1770,11 @@ png_write_image_8bit(png_voidp argument)
    unsigned int channels = (image->format & PNG_FORMAT_FLAG_COLOR) != 0 ?
        3 : 1;
 
+   /* Calculate the total input buffer size in bytes */
+   png_alloc_size_t total_bytes = (png_alloc_size_t)image->height * 
+       (display->row_bytes < 0 ? -display->row_bytes : display->row_bytes);
+   png_const_bytep buffer_end = png_voidcast(png_const_bytep, display->first_row) + total_bytes;
+
    if ((image->format & PNG_FORMAT_FLAG_ALPHA) != 0)
    {
       png_bytep row_end;
@@ -1797,6 +1802,10 @@ png_write_image_8bit(png_voidp argument)
 
          while (out_ptr < row_end)
          {
+            /* Check bounds before accessing in_ptr[aindex] */
+            if ((png_const_bytep)(in_ptr + aindex + 1) > buffer_end)
+               png_error(png_ptr, "Insufficient input data for scanline");
+
             png_uint_16 alpha = in_ptr[aindex];
             png_byte alphabyte = (png_byte)PNG_DIV257(alpha);
             png_uint_32 reciprocal = 0;
@@ -1810,7 +1819,12 @@ png_write_image_8bit(png_voidp argument)
 
             c = (int)channels;
             do /* always at least one channel */
+            {
+               /* Check bounds before dereferencing *in_ptr */
+               if ((png_const_bytep)(in_ptr + 1) > buffer_end)
+                  png_error(png_ptr, "Insufficient input data for scanline");
                *out_ptr++ = png_unpremultiply(*in_ptr++, alpha, reciprocal);
+            }
             while (--c > 0);
 
             /* Skip to next component (skip the intervening alpha channel) */
@@ -1838,6 +1852,10 @@ png_write_image_8bit(png_voidp argument)
 
          while (out_ptr < row_end)
          {
+            /* Check bounds before dereferencing *in_ptr */
+            if ((png_const_bytep)(in_ptr + 1) > buffer_end)
+               png_error(png_ptr, "Insufficient input data for scanline");
+
             png_uint_32 component = *in_ptr++;
 
             component *= 255;
